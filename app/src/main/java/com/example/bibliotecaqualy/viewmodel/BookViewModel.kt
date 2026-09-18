@@ -1,60 +1,76 @@
 package com.example.bibliotecaqualy.viewmodel
 
+import android.util.Log
 import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.ViewModel
 import com.example.bibliotecaqualy.model.Book
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 
 class BookViewModel : ViewModel() {
+    private val db = FirebaseFirestore.getInstance()
+    private val auth = FirebaseAuth.getInstance()
+
     private val _books = mutableStateListOf<Book>()
     val books: List<Book> get() = _books
 
     init {
-        // Libros iniciales para simular los mockups
-        _books.addAll(
-            listOf(
-                Book(
-                    title = "Álgebra Lineal",
-                    author = "Stanley Grossman",
-                    category = "Matemáticas",
-                    edition = "7ma Ed.",
-                    state = "Excelente",
-                    availabilityStatus = "Disponible"
-                ),
-                Book(
-                    title = "El Aleph",
-                    author = "Jorge Luis Borges",
-                    category = "Literatura",
-                    edition = "Edición Especial",
-                    state = "Bueno",
-                    availabilityStatus = "En préstamo"
-                ),
-                Book(
-                    title = "Química General",
-                    author = "Raymond Chang",
-                    category = "Ciencias",
-                    edition = "10a Ed.",
-                    state = "Aceptable",
-                    availabilityStatus = "Intercambiado"
-                )
-            )
-        )
+        listenToBookUpdates()
     }
 
-    // CREATE / AGREGAR
+    private fun listenToBookUpdates() {
+        db.collection("books")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e("BookViewModel", "Error al consultar Firestore", error)
+                    return@addSnapshotListener
+                }
+
+                if (snapshot != null) {
+                    _books.clear()
+                    for (doc in snapshot.documents) {
+                        try {
+                            val book = doc.toObject(Book::class.java)
+                            if (book != null) {
+                                _books.add(book)
+                            }
+                        } catch (e: Exception) {
+                            Log.e("BookViewModel", "Error deserializando el libro ${doc.id}", e)
+                        }
+                    }
+                    Log.d("BookViewModel", "Total libros cargados: ${_books.size}")
+                }
+            }
+    }
+
     fun addBook(book: Book) {
-        _books.add(book)
+        val currentUserId = auth.currentUser?.uid ?: ""
+        val currentUserEmail = auth.currentUser?.email ?: "Usuario"
+        val newBook = book.copy(
+            ownerId = currentUserId,
+            ownerName = currentUserEmail
+        )
+
+        db.collection("books").document(newBook.id).set(newBook)
+            .addOnSuccessListener {
+                Log.d("BookViewModel", "Libro guardado exitosamente: ${newBook.id}")
+            }
+            .addOnFailureListener { e ->
+                Log.e("BookViewModel", "Error al guardar el libro", e)
+            }
     }
 
-    // UPDATE / EDITAR
     fun updateBook(updatedBook: Book) {
-        val index = _books.indexOfFirst { it.id == updatedBook.id }
-        if (index != -1) {
-            _books[index] = updatedBook
-        }
+        db.collection("books").document(updatedBook.id).set(updatedBook)
+            .addOnFailureListener { e ->
+                Log.e("BookViewModel", "Error al actualizar", e)
+            }
     }
 
-    // DELETE / ELIMINAR (Retirar)
     fun deleteBook(bookId: String) {
-        _books.removeAll { it.id == bookId }
+        db.collection("books").document(bookId).delete()
+            .addOnFailureListener { e ->
+                Log.e("BookViewModel", "Error al eliminar", e)
+            }
     }
 }

@@ -1,4 +1,5 @@
 package com.example.bibliotecaqualy.screens
+
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -9,6 +10,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,9 +22,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.bibliotecaqualy.model.Book
-import com.example.bibliotecaqualy.ui.theme.*
+import com.example.bibliotecaqualy.ui.theme.QualyBackground
+import com.example.bibliotecaqualy.ui.theme.QualyGreen
 import com.example.bibliotecaqualy.viewmodel.BookViewModel
-import java.util.UUID
 
 @Composable
 fun AddEditBookScreen(
@@ -34,9 +37,8 @@ fun AddEditBookScreen(
     var category by remember { mutableStateOf(bookToEdit?.category ?: "Literatura") }
     var edition by remember { mutableStateOf(bookToEdit?.edition ?: "") }
     var state by remember { mutableStateOf(bookToEdit?.state ?: "Excelente") }
-    var imageUri by remember { mutableStateOf<Uri?>(bookToEdit?.coverUri) }
+    var imageUri by remember { mutableStateOf<Uri?>(if (bookToEdit?.coverUrl?.isNotEmpty() == true) Uri.parse(bookToEdit.coverUrl) else null) }
 
-    // Launcher para abrir la Galería del teléfono
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -58,13 +60,12 @@ fun AddEditBookScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Caja para subir/mostrar foto de portada
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(160.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(QualyCardBg)
+                .background(Color.White)
                 .border(1.dp, Color.LightGray, RoundedCornerShape(12.dp))
                 .clickable { galleryLauncher.launch("image/*") },
             contentAlignment = Alignment.Center
@@ -72,14 +73,16 @@ fun AddEditBookScreen(
             if (imageUri != null) {
                 AsyncImage(
                     model = imageUri,
-                    contentDescription = "Portada seleccionada",
+                    contentDescription = "Portada",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
             } else {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.Add, contentDescription = null, tint = Color.Gray)
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text("Subir Foto de Portada", color = Color.Gray)
-                    Text("Formatos permitidos: JPG, PNG", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    Text("Formatos permitidos: JPG, PNG", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                 }
             }
         }
@@ -113,24 +116,24 @@ fun AddEditBookScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Botón de guardar / publicar
         Button(
             onClick = {
                 if (title.isNotEmpty() && author.isNotEmpty()) {
-                    val newOrUpdatedBook = Book(
-                        id = bookToEdit?.id ?: UUID.randomUUID().toString(),
+                    val bookToSave = Book(
+                        id = bookToEdit?.id ?: java.util.UUID.randomUUID().toString(),
                         title = title,
                         author = author,
                         category = category,
                         edition = edition,
                         state = state,
-                        coverUri = imageUri
+                        coverUrl = imageUri?.toString() ?: "",
+                        rating = 5.0
                     )
 
                     if (bookToEdit == null) {
-                        viewModel.addBook(newOrUpdatedBook)
+                        viewModel.addBook(bookToSave)
                     } else {
-                        viewModel.updateBook(newOrUpdatedBook)
+                        viewModel.updateBook(bookToSave)
                     }
                     onComplete()
                 }

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "993124868869",
+    "project_id": "bibliotecaqualy",
+    "storage_bucket": "bibliotecaqualy.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:993124868869:android:359417b4930381a51d8d6c",
+        "android_client_info": {
+          "package_name": "com.example.bibliotecaqualy"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCsGnPZhrRrMidthYVKw9OGjl3kco_O-W8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
