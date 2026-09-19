@@ -28,6 +28,7 @@ import com.example.bibliotecaqualy.ui.theme.BibliotecaQualyTheme
 import com.example.bibliotecaqualy.ui.theme.QualyGreen
 import com.example.bibliotecaqualy.viewmodel.BookViewModel
 import com.google.firebase.auth.FirebaseAuth
+ import androidx.compose.ui.platform.LocalContext
 
 class MainActivity : ComponentActivity() {
     private val viewModel: BookViewModel by viewModels()
@@ -91,11 +92,14 @@ fun MainAppStructure(viewModel: BookViewModel, onLogout: () -> Unit) {
     ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding)) {
             when (currentTab) {
-                0 -> HomeScreen(viewModel = viewModel) // Feed Global con todos los libros
-                1 -> MyBooksScreen(viewModel = viewModel, onEditBook = { book ->
-                    bookToEdit = book
-                    currentTab = 2
-                }) // Solo los libros del usuario logueado
+                0 -> HomeScreen(viewModel = viewModel)
+                1 -> MyBooksScreen(
+                    viewModel = viewModel,
+                    onEditBook = { book ->
+                        bookToEdit = book
+                        currentTab = 2
+                    }
+                )
                 2 -> AddEditBookScreen(
                     viewModel = viewModel,
                     bookToEdit = bookToEdit,
@@ -104,8 +108,18 @@ fun MainAppStructure(viewModel: BookViewModel, onLogout: () -> Unit) {
                         currentTab = 1
                     }
                 )
-                3 -> BuzonScreen()
-                4 -> PerfilScreen(onLogout = onLogout)
+                3 -> BuzonScreen() // (Próxima pantalla)
+                4 -> {
+                    val context = LocalContext.current
+                    PerfilScreen(
+                        viewModel = viewModel,
+                        onLogout = {
+                            val activity = context as? ComponentActivity
+                            activity?.finish()
+                            activity?.startActivity(activity.intent)
+                        }
+                    )
+                }
             }
         }
     }
