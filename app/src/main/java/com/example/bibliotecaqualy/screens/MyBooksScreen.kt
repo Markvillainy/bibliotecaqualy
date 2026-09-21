@@ -102,7 +102,7 @@ fun MyBookCard(
             ) {
                 if (book.coverUrl.isNotEmpty()) {
                     AsyncImage(
-                        model = book.coverUrl,
+                        model = book.coverUri,
                         contentDescription = "Portada de ${book.title}",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop

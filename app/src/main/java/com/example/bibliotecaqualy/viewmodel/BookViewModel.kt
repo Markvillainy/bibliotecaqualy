@@ -46,17 +46,19 @@ class BookViewModel : ViewModel() {
     fun addBook(book: Book) {
         val currentUserId = auth.currentUser?.uid ?: ""
         val currentUserEmail = auth.currentUser?.email ?: "Usuario"
-        val newBook = book.copy(
-            ownerId = currentUserId,
-            ownerName = currentUserEmail
-        )
 
-        db.collection("books").document(newBook.id).set(newBook)
+        // Generar un ID único directamente si viene vacío
+        val bookId = if (book.id.isEmpty()) db.collection("books").document().id else book.id
+        val newBook = book.copy(id = bookId, ownerId = currentUserId, ownerName = currentUserEmail)
+
+        db.collection("books")
+            .document(bookId)
+            .set(newBook)
             .addOnSuccessListener {
-                Log.d("BookViewModel", "Libro guardado exitosamente: ${newBook.id}")
+                Log.d("BookViewModel", "Libro guardado con éxito: $bookId")
             }
             .addOnFailureListener { e ->
-                Log.e("BookViewModel", "Error al guardar el libro", e)
+                Log.e("BookViewModel", "Error al guardar en Firestore", e)
             }
     }
 
@@ -72,5 +74,51 @@ class BookViewModel : ViewModel() {
             .addOnFailureListener { e ->
                 Log.e("BookViewModel", "Error al eliminar", e)
             }
+    }
+    private val _requests = mutableStateListOf<com.example.bibliotecaqualy.model.Request>()
+    val requests: List<com.example.bibliotecaqualy.model.Request> get() = _requests
+
+    fun sendRequest(context: android.content.Context, book: Book) {
+        val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+        val requesterId = currentUser?.uid ?: "user_test_123"
+        val requesterName = currentUser?.displayName ?: currentUser?.email ?: "Usuario Estudiante"
+
+        val newRequest = com.example.bibliotecaqualy.model.Request(
+            id = java.util.UUID.randomUUID().toString(),
+            bookId = book.id,
+            bookTitle = book.title,
+            requesterId = requesterId,
+            requesterName = requesterName,
+            ownerId = book.ownerId,
+            ownerName = book.ownerName,
+            status = "PENDIENTE"
+        )
+
+        _requests.add(newRequest)
+
+        // Notificación simulada al propietario del libro
+        com.example.bibliotecaqualy.util.NotificationHelper.showNotification(
+            context = context,
+            title = "¡Nueva solicitud recibida!",
+            message = "$requesterName te ha solicitado el libro '${book.title}'"
+        )
+    }
+
+    fun updateRequestStatus(context: android.content.Context, requestId: String, newStatus: String) {
+        val index = _requests.indexOfFirst { it.id == requestId }
+        if (index != -1) {
+            val oldReq = _requests[index]
+            val updatedReq = oldReq.copy(status = newStatus)
+            _requests[index] = updatedReq
+
+            val mensajeStatus = if (newStatus == "ACEPTADA") "aceptada" else "rechazada"
+
+            // Notificación simulada al usuario que solicitó
+            com.example.bibliotecaqualy.util.NotificationHelper.showNotification(
+                context = context,
+                title = "Solicitud $mensajeStatus",
+                message = "Tu solicitud para '${oldReq.bookTitle}' fue $mensajeStatus por ${oldReq.ownerName}"
+            )
+        }
     }
 }

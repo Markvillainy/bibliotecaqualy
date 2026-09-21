@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
@@ -18,7 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
+import androidx.compose.ui.unit.sp
 import com.example.bibliotecaqualy.model.Book
 import com.example.bibliotecaqualy.ui.theme.*
 import com.example.bibliotecaqualy.viewmodel.BookViewModel
@@ -31,14 +32,21 @@ fun HomeScreen(
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("Todos") }
 
-    val categories = listOf("Todos", "Matemáticas", "Literatura", "Ciencias")
+    val categories = listOf("Todos", "Matemáticas", "Literatura", "Ciencias", "Didáctico", "Otros")
 
-    // Filtrar libros según la búsqueda y la categoría seleccionada
+    // Lógica de filtrado en tiempo real
     val filteredBooks = viewModel.books.filter { book ->
+        val matchesCategory = if (selectedCategory == "Todos") {
+            true
+        } else {
+            book.category.equals(selectedCategory, ignoreCase = true) ||
+                    book.genre.equals(selectedCategory, ignoreCase = true)
+        }
+
         val matchesSearch = book.title.contains(searchQuery, ignoreCase = true) ||
                 book.author.contains(searchQuery, ignoreCase = true)
-        val matchesCategory = if (selectedCategory == "Todos") true else book.category == selectedCategory
-        matchesSearch && matchesCategory
+
+        matchesCategory && matchesSearch
     }
 
     Column(
@@ -57,31 +65,38 @@ fun HomeScreen(
         ) {
             Text(
                 text = "Biblioteca Qualy",
-                style = MaterialTheme.typography.headlineMedium,
+                fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 color = QualyGreen
             )
             IconButton(onClick = { }) {
-                Icon(Icons.Default.Notifications, contentDescription = "Notificaciones", tint = Color.Black)
+                Icon(
+                    imageVector = Icons.Default.Notifications,
+                    contentDescription = "Notificaciones",
+                    tint = Color.Black
+                )
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        // Buscador
+        // Barra de Búsqueda
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            placeholder = { Text("¿Qué libro buscas hoy?") },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(25.dp),
+            placeholder = { Text("¿Qué libro buscas hoy?", color = Color.Gray) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(25.dp)),
             colors = OutlinedTextFieldDefaults.colors(
-                unfocusedContainerColor = Color.White,
                 focusedContainerColor = Color.White,
-                unfocusedBorderColor = Color.Transparent,
-                focusedBorderColor = QualyGreen
-            )
+                unfocusedContainerColor = Color.White,
+                disabledContainerColor = Color.White,
+                focusedBorderColor = Color.Transparent,
+                unfocusedBorderColor = Color.Transparent
+            ),
+            singleLine = true
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -89,90 +104,88 @@ fun HomeScreen(
         // Chips de Categorías
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(categories) { category ->
-                FilterChip(
-                    selected = selectedCategory == category,
-                    onClick = { selectedCategory = category },
-                    label = { Text(category) },
-                    shape = RoundedCornerShape(20.dp),
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = QualyGreen,
-                        selectedLabelColor = Color.White,
-                        containerColor = Color.White,
-                        labelColor = Color.Black
+                val isSelected = category == selectedCategory
+                Surface(
+                    shape = CircleShape,
+                    color = if (isSelected) QualyGreen else Color.White,
+                    modifier = Modifier.clickable { selectedCategory = category }
+                ) {
+                    Text(
+                        text = category,
+                        color = if (isSelected) Color.White else Color.Black,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        fontSize = 14.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                     )
-                )
+                }
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        // Título de la lista
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Libros Disponibles",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "Ver todos",
-                style = MaterialTheme.typography.bodySmall,
-                color = QualyGreen,
-                fontWeight = FontWeight.Bold
-            )
-        }
+        // Título de sección
+        Text(
+            text = "Libros Disponibles",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
+        )
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Lista de Libros (Feed)
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(filteredBooks) { book ->
-                BookCardItem(book = book, onClick = { onBookClick(book) })
+        // Lista de Libros Filtrados
+        if (filteredBooks.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("No se encontraron libros.", color = Color.Gray)
+            }
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                items(filteredBooks) { book ->
+                    BookHomeCard(book = book, onClick = { onBookClick(book) })
+                }
             }
         }
     }
 }
 
 @Composable
-fun BookCardItem(book: Book, onClick: () -> Unit) {
+fun BookHomeCard(book: Book, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
-                .padding(12.dp)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Portada
+            // Portada Mock
             Box(
                 modifier = Modifier
-                    .size(70.dp, 95.dp)
+                    .size(70.dp, 90.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(QualyChipUnselected),
+                    .background(Color(0xFFEFEFEF)),
                 contentAlignment = Alignment.Center
             ) {
-                if (book.coverUrl != null) {
-                    AsyncImage(
-                        model = book.coverUrl,
-                        contentDescription = book.title,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Text(
-                        text = book.title,
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(4.dp)
-                    )
-                }
+                Text(
+                    text = book.title.take(6),
+                    fontSize = 11.sp,
+                    color = Color.DarkGray,
+                    fontWeight = FontWeight.Bold
+                )
             }
 
             Spacer(modifier = Modifier.width(16.dp))
@@ -181,39 +194,41 @@ fun BookCardItem(book: Book, onClick: () -> Unit) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = book.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
                 )
                 Text(
                     text = book.author,
-                    style = MaterialTheme.typography.bodyMedium,
+                    fontSize = 14.sp,
                     color = Color.Gray
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // Badge Categoría
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    // Chip de Materia/Categoría
                     Surface(
-                        color = QualyChipUnselected,
-                        shape = RoundedCornerShape(6.dp)
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xFFF2F0EB)
                     ) {
                         Text(
-                            text = book.category,
-                            style = MaterialTheme.typography.labelSmall,
+                            text = if (book.category.isNotEmpty()) book.category else "General",
+                            fontSize = 11.sp,
+                            color = Color.DarkGray,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
 
-                    // Badge Estado Disponibilidad
-                    val isAvailable = book.availabilityStatus == "Disponible"
+                    // Chip de Estado de Disponibilidad
+                    val isAvailable = book.availabilityStatus.equals("Disponible", ignoreCase = true)
                     Surface(
-                        color = if (isAvailable) StatusAvailable else StatusOnLoan,
-                        shape = RoundedCornerShape(6.dp)
+                        shape = RoundedCornerShape(6.dp),
+                        color = if (isAvailable) Color(0xFFE8F5E9) else Color(0xFFFFF3E0)
                     ) {
                         Text(
                             text = "• ${book.availabilityStatus}",
-                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 11.sp,
                             color = if (isAvailable) Color(0xFF2E7D32) else Color(0xFFE65100),
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )

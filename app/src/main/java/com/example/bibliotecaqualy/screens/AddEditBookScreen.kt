@@ -4,28 +4,28 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.bibliotecaqualy.model.Book
 import com.example.bibliotecaqualy.ui.theme.QualyBackground
 import com.example.bibliotecaqualy.ui.theme.QualyGreen
 import com.example.bibliotecaqualy.viewmodel.BookViewModel
+import com.google.firebase.auth.FirebaseAuth
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEditBookScreen(
     viewModel: BookViewModel,
@@ -34,16 +34,22 @@ fun AddEditBookScreen(
 ) {
     var title by remember { mutableStateOf(bookToEdit?.title ?: "") }
     var author by remember { mutableStateOf(bookToEdit?.author ?: "") }
-    var category by remember { mutableStateOf(bookToEdit?.category ?: "Literatura") }
-    var edition by remember { mutableStateOf(bookToEdit?.edition ?: "") }
-    var state by remember { mutableStateOf(bookToEdit?.state ?: "Excelente") }
-    var imageUri by remember { mutableStateOf<Uri?>(if (bookToEdit?.coverUrl?.isNotEmpty() == true) Uri.parse(bookToEdit.coverUrl) else null) }
+    var description by remember { mutableStateOf(bookToEdit?.description ?: "") }
+    var selectedImageUri by remember { mutableStateOf<Uri?>(bookToEdit?.coverUri) }
 
-    val galleryLauncher = rememberLauncherForActivityResult(
+    // Estado para el NUEVO campo: Género
+    val genreOptions = listOf("Literatura", "Matemáticas", "Ciencias", "Didáctico", "Otros")
+    var expandedGenre by remember { mutableStateOf(false) }
+    var selectedGenre by remember { mutableStateOf(bookToEdit?.genre ?: genreOptions[0]) }
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        if (uri != null) imageUri = uri
+        selectedImageUri = uri
     }
+
+    val auth = FirebaseAuth.getInstance()
+    val currentUserId = auth.currentUser?.uid ?: ""
 
     Column(
         modifier = Modifier
@@ -53,98 +59,156 @@ fun AddEditBookScreen(
             .verticalScroll(rememberScrollState())
     ) {
         Text(
-            text = if (bookToEdit == null) "Publicar un Libro" else "Editar Libro",
+            text = if (bookToEdit == null) "Publicar Libro" else "Editar Libro",
             style = MaterialTheme.typography.headlineMedium,
-            color = Color.Black
+            fontWeight = FontWeight.Bold,
+            color = QualyGreen
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Box(
+        // Selector de Portada
+        Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(160.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color.White)
-                .border(1.dp, Color.LightGray, RoundedCornerShape(12.dp))
-                .clickable { galleryLauncher.launch("image/*") },
-            contentAlignment = Alignment.Center
+                .clickable { imagePickerLauncher.launch("image/*") },
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
-            if (imageUri != null) {
-                AsyncImage(
-                    model = imageUri,
-                    contentDescription = "Portada",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.Add, contentDescription = null, tint = Color.Gray)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("Subir Foto de Portada", color = Color.Gray)
-                    Text("Formatos permitidos: JPG, PNG", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                if (selectedImageUri != null) {
+                    AsyncImage(
+                        model = selectedImageUri,
+                        contentDescription = "Portada",
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Text("Toca para seleccionar imagen de portada", color = Color.Gray)
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Título
         OutlinedTextField(
             value = title,
             onValueChange = { title = it },
-            label = { Text("Título del Libro") },
-            modifier = Modifier.fillMaxWidth()
+            label = { Text("Título del libro") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
+        // Autor
         OutlinedTextField(
             value = author,
             onValueChange = { author = it },
             label = { Text("Autor") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        OutlinedTextField(
-            value = edition,
-            onValueChange = { edition = it },
-            label = { Text("Edición / Año") },
+        // --- NUEVO CAMPO: Selector de Género ---
+        ExposedDropdownMenuBox(
+            expanded = expandedGenre,
+            onExpandedChange = { expandedGenre = !expandedGenre },
             modifier = Modifier.fillMaxWidth()
+        ) {
+            OutlinedTextField(
+                value = selectedGenre,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Género") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedGenre) },
+                modifier = Modifier
+                    .menuAnchor()
+                    .fillMaxWidth()
+            )
+
+            ExposedDropdownMenu(
+                expanded = expandedGenre,
+                onDismissRequest = { expandedGenre = false }
+            ) {
+                genreOptions.forEach { genre ->
+                    DropdownMenuItem(
+                        text = { Text(genre) },
+                        onClick = {
+                            selectedGenre = genre
+                            expandedGenre = false
+                        }
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Descripción
+        OutlinedTextField(
+            value = description,
+            onValueChange = { description = it },
+            label = { Text("Descripción / Estado del libro") },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 3
         )
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // Botón Guardar / Publicar
         Button(
             onClick = {
-                if (title.isNotEmpty() && author.isNotEmpty()) {
-                    val bookToSave = Book(
-                        id = bookToEdit?.id ?: java.util.UUID.randomUUID().toString(),
-                        title = title,
-                        author = author,
-                        category = category,
-                        edition = edition,
-                        state = state,
-                        coverUrl = imageUri?.toString() ?: "",
-                        rating = 5.0
-                    )
+                // 1. Declaramos las variables del usuario actual de Firebase
+                val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+                val currentUserId = currentUser?.uid ?: ""
+                val currentUserName = currentUser?.displayName ?: currentUser?.email ?: "Usuario Qualy"
 
-                    if (bookToEdit == null) {
-                        viewModel.addBook(bookToSave)
-                    } else {
-                        viewModel.updateBook(bookToSave)
-                    }
-                    onComplete()
+                // 2. Creamos el objeto Book usando esas variables
+                // Dentro de AddEditBookScreen.kt en el evento onClick:
+                val newBook = Book(
+                    id = bookToEdit?.id ?: "",
+                    title = title,
+                    author = author,
+                    category = selectedGenre, // <-- Asigna el género/materia seleccionado aquí
+                    genre = selectedGenre,
+                    description = description,
+                    coverUrl = "",
+                    ownerId = currentUserId,
+                    ownerName = currentUserName,
+                    availabilityStatus = bookToEdit?.availabilityStatus ?: "Disponible"
+                ).apply {
+                    coverUri = selectedImageUri
                 }
-            },
+
+                // 3. Guardamos o actualizamos según corresponda
+                if (bookToEdit == null) {
+                    viewModel.addBook(newBook)
+                } else {
+                    viewModel.updateBook(newBook)
+                }
+
+                onComplete()
+
+                },
+
+            colors = ButtonDefaults.buttonColors(containerColor = QualyGreen),
+            shape = RoundedCornerShape(10.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(50.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = QualyGreen),
-            shape = RoundedCornerShape(10.dp)
+                .height(50.dp)
         ) {
-            Text(if (bookToEdit == null) "Publicar Libro" else "Guardar Cambios", color = Color.White)
+            Text(
+                text = if (bookToEdit == null) "Publicar Libro" else "Guardar Cambios",
+                color = Color.White,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }
