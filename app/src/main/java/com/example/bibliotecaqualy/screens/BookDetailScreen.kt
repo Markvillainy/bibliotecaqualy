@@ -6,7 +6,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -18,7 +18,9 @@ import androidx.compose.ui.unit.sp
 import com.example.bibliotecaqualy.model.Book
 import com.example.bibliotecaqualy.ui.theme.QualyBackground
 import com.example.bibliotecaqualy.ui.theme.QualyGreen
+import com.example.bibliotecaqualy.util.NotificationHelper
 import com.example.bibliotecaqualy.viewmodel.BookViewModel
+import com.google.firebase.auth.FirebaseAuth
 
 @Composable
 fun BookDetailScreen(
@@ -27,6 +29,11 @@ fun BookDetailScreen(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
+    val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+    val isMyBook = book.ownerId == currentUserId
+
+    // Estado para bloquear toques múltiples
+    var isSending by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -96,18 +103,52 @@ fun BookDetailScreen(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        Button(
-            onClick = {
-                viewModel.sendRequest(context, book)
-                onBack()
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = QualyGreen),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Text("Solicitar Intercambio / Préstamo", color = Color.White, fontSize = 16.sp)
+        // Validación para evitar autosolicitarse el propio libro
+        if (!isMyBook) {
+            Button(
+                enabled = !isSending, // Se deshabilita mientras envía
+                onClick = {
+                    if (!isSending) {
+                        isSending = true
+
+                        // Una Sola llamada al ViewModel
+                        viewModel.sendRequest(context, book)
+
+                        // Notificación flotante para el solicitante
+                        NotificationHelper.showNotification(
+                            context = context,
+                            title = "¡Nueva solicitud enviada!",
+                            message = "Has solicitado el libro '${book.title}' a ${book.ownerName}"
+                        )
+
+                        onBack()
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = QualyGreen),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                if (isSending) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                } else {
+                    Text("Solicitar Intercambio / Préstamo", color = Color.White, fontSize = 16.sp)
+                }
+            }
+        } else {
+            Surface(
+                color = Color(0xFFE8F5E9),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "Este libro forma parte de tus publicaciones activas.",
+                    color = QualyGreen,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
         }
     }
 }

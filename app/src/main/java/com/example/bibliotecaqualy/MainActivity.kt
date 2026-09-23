@@ -1,8 +1,12 @@
 package com.example.bibliotecaqualy
 
+import android.Manifest
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
@@ -61,6 +65,18 @@ fun MainAppContent(
     var currentTab by remember { mutableIntStateOf(0) }
     var bookToEdit by remember { mutableStateOf<Book?>(null) }
     var selectedBookForDetail by remember { mutableStateOf<Book?>(null) }
+
+    // Solicitar permiso de notificaciones en Android 13+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = {}
+    )
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     if (selectedBookForDetail != null) {
         BookDetailScreen(

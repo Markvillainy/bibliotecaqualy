@@ -17,11 +17,23 @@ import androidx.compose.ui.unit.sp
 import com.example.bibliotecaqualy.ui.theme.QualyBackground
 import com.example.bibliotecaqualy.ui.theme.QualyGreen
 import com.example.bibliotecaqualy.viewmodel.BookViewModel
+import com.google.firebase.auth.FirebaseAuth // Importante
 
 @Composable
 fun BuzonScreen(viewModel: BookViewModel) {
     val context = LocalContext.current
-    val pendingRequests = viewModel.requests.filter { it.status == "PENDIENTE" }
+
+    // 1. Obtener el usuario activo actual
+    val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+    val currentUserEmail = FirebaseAuth.getInstance().currentUser?.email ?: ""
+
+    // 2. Filtrar solicitudes PENDIENTES donde el usuario sea el DUEÑO del libro
+    val pendingRequests = viewModel.requests.filter { req ->
+        req.status == "PENDIENTE" && (
+                (currentUserId.isNotEmpty() && req.ownerId == currentUserId) ||
+                        (currentUserEmail.isNotEmpty() && req.ownerName.equals(currentUserEmail, ignoreCase = true))
+                )
+    }
 
     Column(
         modifier = Modifier
