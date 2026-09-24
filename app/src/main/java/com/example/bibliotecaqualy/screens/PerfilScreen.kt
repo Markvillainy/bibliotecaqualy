@@ -8,164 +8,153 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.bibliotecaqualy.model.ActivityLog
 import com.example.bibliotecaqualy.ui.theme.QualyBackground
 import com.example.bibliotecaqualy.ui.theme.QualyGreen
-import com.example.bibliotecaqualy.viewmodel.BookViewModel
-import com.google.firebase.auth.FirebaseAuth
+import com.example.bibliotecaqualy.viewmodel.ProfileViewModel
+import java.text.SimpleDateFormat
+import java.util.Locale
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
 fun PerfilScreen(
-    viewModel: BookViewModel,
-    onLogout: () -> Unit
+    profileViewModel: ProfileViewModel = viewModel(),
+    onSignOut: () -> Unit = {}
 ) {
-    val auth = FirebaseAuth.getInstance()
-    val currentUser = auth.currentUser
-    val userEmail = currentUser?.email ?: "usuario@unam.mx"
-    val userName = userEmail.substringBefore("@").replace(".", " ").capitalizeWords()
+    LaunchedEffect(Unit) {
+        profileViewModel.loadUserProfile()
+    }
 
-    // Métricas calculadas en tiempo real desde Firestore
-    val myBooksCount = viewModel.books.count { it.ownerId == currentUser?.uid }
+    // Extraer iniciales para el avatar
+    val initials = profileViewModel.userName
+        .split(" ")
+        .take(2)
+        .mapNotNull { it.firstOrNull()?.uppercase() }
+        .joinToString("")
+        .ifEmpty { "U" }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(QualyBackground)
-            .padding(20.dp)
+            .padding(16.dp)
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        // Avatar circular del usuario
+        // Avatar con Iniciales del Usuario Real
         Box(
             modifier = Modifier
                 .size(90.dp)
                 .clip(CircleShape)
-                .background(Color.LightGray),
+                .background(Color(0xFFD9D9D9)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = Icons.Default.Person,
-                contentDescription = "Avatar",
-                modifier = Modifier.size(50.dp),
-                tint = Color.White
+            Text(
+                text = initials,
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Bold,
+                color = QualyGreen
             )
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Datos del estudiante
+        // Nombre y Correo Universitario Reales
         Text(
-            text = userName,
-            style = MaterialTheme.typography.titleLarge,
+            text = profileViewModel.userName,
+            fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
             color = Color.Black
         )
         Text(
-            text = "Estudiante de Ingeniería Mecánica",
-            style = MaterialTheme.typography.bodySmall,
+            text = profileViewModel.userCareer,
+            fontSize = 14.sp,
             color = Color.Gray
         )
         Text(
-            text = "Universidad Nacional Autónoma de México",
-            style = MaterialTheme.typography.labelSmall,
+            text = profileViewModel.userEmail,
+            fontSize = 12.sp,
             color = Color.Gray
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        // Métricas (Publicados, Intercambios, Préstamos)
+        // Tarjetas con Contadores Dinámicos Reales
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            MetricCard(number = "$myBooksCount", label = "Publicados", modifier = Modifier.weight(1f))
+            StatCard(number = profileViewModel.publishedCount.toString(), label = "Publicados", modifier = Modifier.weight(1f))
             Spacer(modifier = Modifier.width(8.dp))
-            MetricCard(number = "12", label = "Intercambios", modifier = Modifier.weight(1f))
+            StatCard(number = profileViewModel.exchangesCount.toString(), label = "Intercambios", modifier = Modifier.weight(1f))
             Spacer(modifier = Modifier.width(8.dp))
-            MetricCard(number = "2", label = "Préstamos", modifier = Modifier.weight(1f))
+            StatCard(number = profileViewModel.loansCount.toString(), label = "Préstamos", modifier = Modifier.weight(1f))
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(28.dp))
 
-        // Sección Actividad Reciente
+        // Historial de Actividad Reciente
         Text(
             text = "Actividad Reciente",
-            style = MaterialTheme.typography.titleMedium,
+            fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
             color = Color.Black,
-            modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.Start
+            modifier = Modifier.align(Alignment.Start)
         )
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        ActivityCard(
-            title = "Intercambio completado",
-            detail = "Cálculo Infinitesimal por Don Quijote",
-            time = "Hace 2 días"
-        )
-        ActivityCard(
-            title = "Préstamo registrado",
-            detail = "Física Universitaria a Sofía Castro",
-            time = "Hace 5 días"
-        )
-        ActivityCard(
-            title = "Libro publicado",
-            detail = "Álgebra Lineal - Stanley Grossman",
-            time = "Hace 1 semana"
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Botón de Cerrar Sesión
-        Button(
-            onClick = {
-                auth.signOut()
-                onLogout()
-            },
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
-            shape = RoundedCornerShape(10.dp),
-            modifier = Modifier.fillMaxWidth().height(48.dp)
-        ) {
-            Text("Cerrar Sesión", color = Color.White, fontWeight = FontWeight.Bold)
+        if (profileViewModel.activities.isEmpty()) {
+            Text(
+                text = "Aún no tienes actividad registrada.",
+                color = Color.Gray,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(vertical = 16.dp)
+            )
+        } else {
+            profileViewModel.activities.forEach { activity ->
+                ActivityItem(activity = activity)
+                Spacer(modifier = Modifier.height(8.dp))
+            }
         }
     }
 }
 
 @Composable
-fun MetricCard(number: String, label: String, modifier: Modifier = Modifier) {
+private fun StatCard(number: String, label: String, modifier: Modifier = Modifier) {
     Card(
         modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = Color.White),
         shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier
-                .padding(vertical = 12.dp, horizontal = 8.dp)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 text = number,
-                style = MaterialTheme.typography.headlineMedium,
+                fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
                 color = QualyGreen
             )
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelSmall,
+                fontSize = 11.sp,
                 color = Color.Gray
             )
         }
@@ -173,24 +162,27 @@ fun MetricCard(number: String, label: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun ActivityCard(title: String, detail: String, time: String) {
+private fun ActivityItem(activity: ActivityLog) {
+    val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+    val formattedTime = activity.timestamp.toDate()?.let { dateFormat.format(it) } ?: ""
+
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(QualyBackground),
+                    .background(Color(0xFFE8F5E9)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -204,15 +196,11 @@ fun ActivityCard(title: String, detail: String, time: String) {
             Spacer(modifier = Modifier.width(12.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                Text(text = detail, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                Text(text = activity.title, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(text = activity.detail, color = Color.Gray, fontSize = 12.sp)
             }
 
-            Text(text = time, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+            Text(text = formattedTime, color = Color.Gray, fontSize = 10.sp)
         }
     }
 }
-
-// Función auxiliar para formatear nombre
-fun String.capitalizeWords(): String =
-    split(" ").joinToString(" ") { it.replaceFirstChar { char -> char.uppercase() } }
