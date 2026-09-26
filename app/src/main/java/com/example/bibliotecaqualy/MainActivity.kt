@@ -1,12 +1,8 @@
 package com.example.bibliotecaqualy
 
-import android.Manifest
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
@@ -25,7 +21,7 @@ import com.example.bibliotecaqualy.model.Book
 import com.example.bibliotecaqualy.screens.*
 import com.example.bibliotecaqualy.ui.theme.QualyGreen
 import com.example.bibliotecaqualy.viewmodel.BookViewModel
-import com.example.bibliotecaqualy.screens.AddEditBookScreen
+import com.google.firebase.auth.FirebaseAuth
 
 class MainActivity : ComponentActivity() {
     private val viewModel: BookViewModel by viewModels()
@@ -34,22 +30,25 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
-                // Controla si el usuario está dentro o fuera de la app
-                var isLoggedIn by remember { mutableStateOf(false) }
+                // Comprueba si hay una sesión activa de Firebase al iniciar
+                var isLoggedIn by remember {
+                    mutableStateOf(FirebaseAuth.getInstance().currentUser != null)
+                }
 
                 if (!isLoggedIn) {
-                    // Muestra la pantalla de Login si no ha iniciado sesión
+                    // Pantalla de Inicio de Sesión
                     LoginScreen(
                         onLoginSuccess = {
                             isLoggedIn = true
                         }
                     )
                 } else {
-                    // Muestra las 5 pestañas de la app si ya inició sesión
+                    // Pantalla Principal de la App (5 pestañas)
                     MainAppContent(
                         viewModel = viewModel,
                         onLogout = {
-                            isLoggedIn = false // Redirige inmediatamente al LoginScreen
+                            FirebaseAuth.getInstance().signOut()
+                            isLoggedIn = false // Redirige de inmediato al LoginScreen
                         }
                     )
                 }
@@ -66,18 +65,6 @@ fun MainAppContent(
     var currentTab by remember { mutableIntStateOf(0) }
     var bookToEdit by remember { mutableStateOf<Book?>(null) }
     var selectedBookForDetail by remember { mutableStateOf<Book?>(null) }
-
-    // Solicitar permiso de notificaciones en Android 13+
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-        onResult = {}
-    )
-
-    LaunchedEffect(Unit) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
-    }
 
     if (selectedBookForDetail != null) {
         BookDetailScreen(
@@ -138,22 +125,10 @@ fun MainAppContent(
                         }
                     )
                     3 -> BuzonScreen(viewModel = viewModel)
-                    4 -> {
-                        val context = androidx.compose.ui.platform.LocalContext.current
-                        PerfilScreen(
-                            profileViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
-                            onSignOut = {
-                                // 1. Cerrar sesión en Firebase
-                                com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
-
-                                // 2. Reiniciar la app o redirigir al Login
-                                val intent = android.content.Intent(context, MainActivity::class.java).apply {
-                                    flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                }
-                                context.startActivity(intent)
-                            }
-                        )
-                    }
+                    4 -> PerfilScreen(
+                        viewModel = viewModel,
+                        onLogout = onLogout
+                    )
                 }
             }
         }
