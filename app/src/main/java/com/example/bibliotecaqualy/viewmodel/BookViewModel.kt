@@ -11,6 +11,14 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import java.util.UUID
 
+// Modelo de datos para las tarjetas de Actividad Reciente
+data class ActivityItem(
+    val title: String,
+    val description: String,
+    val timeAgo: String,
+    val timestamp: Long
+)
+
 class BookViewModel : ViewModel() {
     private val db = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
@@ -74,6 +82,54 @@ class BookViewModel : ViewModel() {
                 }
             }
     }
+
+    // --- FUNCIONES PARA PERFIL Y ESTADÍSTICAS ---
+
+    // 1. Contador de Préstamos Aceptados
+    fun getActiveLoansCount(currentUserId: String): Int {
+        return _requests.count { request ->
+            (request.applicantId == currentUserId || request.ownerId == currentUserId) &&
+                    request.status.equals("ACEPTADA", ignoreCase = true)
+        }
+    }
+
+    // 2. Generador de Lista de Actividad Reciente (Publicaciones y Préstamos Aceptados)
+    fun getRecentActivity(currentUserId: String): List<ActivityItem> {
+        val activityList = mutableListOf<ActivityItem>()
+
+        // Libros publicados por el usuario
+        _books.filter { it.ownerId == currentUserId }.forEach { book ->
+            activityList.add(
+                ActivityItem(
+                    title = "Libro publicado",
+                    description = "${book.title} - ${book.author}",
+                    timeAgo = "Reciente",
+                    timestamp = System.currentTimeMillis() // Puedes mapear book.timestamp si existe en tu modelo Book
+                )
+            )
+        }
+
+        // Solicitudes del usuario que han sido ACEPTADAS
+        _requests.filter {
+            (it.applicantId == currentUserId || it.ownerId == currentUserId) &&
+                    it.status.equals("ACEPTADA", ignoreCase = true)
+        }.forEach { req ->
+            val otherPerson = if (req.ownerId == currentUserId) req.requesterName else req.ownerName
+            activityList.add(
+                ActivityItem(
+                    title = "Préstamo registrado",
+                    description = "${req.bookTitle} a $otherPerson",
+                    timeAgo = "Reciente",
+                    timestamp = req.timestamp
+                )
+            )
+        }
+
+        // Ordenar por más reciente primero
+        return activityList.sortedByDescending { it.timestamp }
+    }
+
+    // --- OPERACIONES EN FIRESTORE ---
 
     fun addBook(book: Book, onSuccess: () -> Unit = {}) {
         val currentUser = auth.currentUser

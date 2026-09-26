@@ -11,6 +11,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -36,6 +37,7 @@ fun PerfilScreen(
 ) {
     val auth = FirebaseAuth.getInstance()
     val currentUser = auth.currentUser
+    val currentUserId = currentUser?.uid ?: ""
     val context = LocalContext.current
 
     var username by remember {
@@ -48,7 +50,10 @@ fun PerfilScreen(
     var newUsernameInput by remember { mutableStateOf("") }
     var newPhotoUrlInput by remember { mutableStateOf("") }
 
-    val myBooksCount = viewModel.books.count { it.ownerId == (currentUser?.uid ?: "") }
+    // Datos reactivos
+    val myBooksCount = viewModel.books.count { it.ownerId == currentUserId }
+    val loansCount = viewModel.getActiveLoansCount(currentUserId)
+    val recentActivities = viewModel.getRecentActivity(currentUserId)
 
     Column(
         modifier = Modifier
@@ -60,6 +65,7 @@ fun PerfilScreen(
     ) {
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Avatar
         Box(
             modifier = Modifier
                 .size(100.dp)
@@ -139,18 +145,19 @@ fun PerfilScreen(
         }
 
         Text(
-            text = "Estudiante Universitario",
+            text = "Estudiante de Ingeniería Mecánica",
             fontSize = 14.sp,
             color = Color.Gray
         )
         Text(
-            text = currentUser?.email ?: "",
+            text = "Universidad Nacional Autónoma de México",
             fontSize = 12.sp,
             color = Color.Gray
         )
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // Tarjetas de Estadísticas (Publicados y Préstamos actualizados)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
@@ -162,7 +169,7 @@ fun PerfilScreen(
             )
             Spacer(modifier = Modifier.width(16.dp))
             StatCard(
-                number = "0",
+                number = loansCount.toString(),
                 label = "Préstamos",
                 modifier = Modifier.weight(1f)
             )
@@ -170,6 +177,7 @@ fun PerfilScreen(
 
         Spacer(modifier = Modifier.height(28.dp))
 
+        // Sección: Actividad Reciente
         Text(
             text = "Actividad Reciente",
             fontSize = 18.sp,
@@ -178,23 +186,35 @@ fun PerfilScreen(
             modifier = Modifier.align(Alignment.Start)
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 20.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "Aún no tienes actividad registrada.",
-                color = Color.Gray,
-                fontSize = 14.sp
-            )
+        if (recentActivities.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 20.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Aún no tienes actividad registrada.",
+                    color = Color.Gray,
+                    fontSize = 14.sp
+                )
+            }
+        } else {
+            recentActivities.forEach { item ->
+                ActivityCard(
+                    title = item.title,
+                    description = item.description,
+                    timeAgo = item.timeAgo
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // Botón Cerrar Sesión
         Button(
             onClick = {
                 auth.signOut()
@@ -221,6 +241,7 @@ fun PerfilScreen(
         }
     }
 
+    // DIÁLOGOS DE EDICIÓN
     if (showEditNameDialog) {
         AlertDialog(
             onDismissRequest = { showEditNameDialog = false },
@@ -246,8 +267,6 @@ fun PerfilScreen(
                                     if (task.isSuccessful) {
                                         username = newUsernameInput.trim()
                                         Toast.makeText(context, "Nombre actualizado", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        Toast.makeText(context, "Error al actualizar", Toast.LENGTH_SHORT).show()
                                     }
                                 }
                             showEditNameDialog = false
@@ -270,31 +289,24 @@ fun PerfilScreen(
             onDismissRequest = { showEditPhotoDialog = false },
             title = { Text("Cambiar Foto de Perfil") },
             text = {
-                Column {
-                    OutlinedTextField(
-                        value = newPhotoUrlInput,
-                        onValueChange = { newPhotoUrlInput = it },
-                        label = { Text("URL de la foto de perfil") },
-                        placeholder = { Text("https://ejemplo.com/foto.jpg") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
+                OutlinedTextField(
+                    value = newPhotoUrlInput,
+                    onValueChange = { newPhotoUrlInput = it },
+                    label = { Text("URL de la foto") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
             },
             confirmButton = {
                 TextButton(
                     onClick = {
                         val uriToSave = android.net.Uri.parse(newPhotoUrlInput.trim())
-                        val profileUpdates = userProfileChangeRequest {
-                            photoUri = uriToSave
-                        }
+                        val profileUpdates = userProfileChangeRequest { photoUri = uriToSave }
                         currentUser?.updateProfile(profileUpdates)
                             ?.addOnCompleteListener { task ->
                                 if (task.isSuccessful) {
                                     photoUrl = newPhotoUrlInput.trim()
-                                    Toast.makeText(context, "Foto de perfil actualizada", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    Toast.makeText(context, "Error al actualizar la foto", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Foto actualizada", Toast.LENGTH_SHORT).show()
                                 }
                             }
                         showEditPhotoDialog = false
@@ -309,6 +321,65 @@ fun PerfilScreen(
                 }
             }
         )
+    }
+}
+
+// Componente para la Tarjeta de Actividad (Estilo Mockup)
+@Composable
+private fun ActivityCard(
+    title: String,
+    description: String,
+    timeAgo: String
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFF0F4F1)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Notifications,
+                    contentDescription = null,
+                    tint = QualyGreen,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = Color.Black
+                )
+                Text(
+                    text = description,
+                    fontSize = 13.sp,
+                    color = Color.Gray
+                )
+            }
+
+            Text(
+                text = timeAgo,
+                fontSize = 11.sp,
+                color = Color.Gray
+            )
+        }
     }
 }
 
