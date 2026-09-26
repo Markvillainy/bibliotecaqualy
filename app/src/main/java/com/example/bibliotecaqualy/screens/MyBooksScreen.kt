@@ -92,7 +92,7 @@ fun MyBookCard(
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Recuadro de la portada del libro
+            // Recuadro de la portada del libro con AsyncImage
             Box(
                 modifier = Modifier
                     .size(70.dp, 90.dp)
@@ -100,16 +100,16 @@ fun MyBookCard(
                     .background(Color.LightGray),
                 contentAlignment = Alignment.Center
             ) {
-                if (book.coverUrl.isNotEmpty()) {
+                if (book.coverUrl.isNotBlank()) {
                     AsyncImage(
-                        model = book.coverUri,
+                        model = book.coverUrl,
                         contentDescription = "Portada de ${book.title}",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
                 } else {
                     Text(
-                        text = book.category,
+                        text = if (book.category.isNotEmpty()) book.category else "General",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.DarkGray
                     )

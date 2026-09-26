@@ -17,9 +17,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.bibliotecaqualy.model.Book
 import com.example.bibliotecaqualy.ui.theme.*
 import com.example.bibliotecaqualy.viewmodel.BookViewModel
@@ -39,8 +41,7 @@ fun HomeScreen(
         val matchesCategory = if (selectedCategory == "Todos") {
             true
         } else {
-            book.category.equals(selectedCategory, ignoreCase = true) ||
-                    book.genre.equals(selectedCategory, ignoreCase = true)
+            book.category.equals(selectedCategory, ignoreCase = true)
         }
 
         val matchesSearch = book.title.contains(searchQuery, ignoreCase = true) ||
@@ -172,7 +173,7 @@ fun BookHomeCard(book: Book, onClick: () -> Unit) {
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Portada Mock
+            // Portada de libro con AsyncImage
             Box(
                 modifier = Modifier
                     .size(70.dp, 90.dp)
@@ -180,12 +181,21 @@ fun BookHomeCard(book: Book, onClick: () -> Unit) {
                     .background(Color(0xFFEFEFEF)),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = book.title.take(6),
-                    fontSize = 11.sp,
-                    color = Color.DarkGray,
-                    fontWeight = FontWeight.Bold
-                )
+                if (book.coverUrl.isNotBlank()) {
+                    AsyncImage(
+                        model = book.coverUrl,
+                        contentDescription = "Portada de ${book.title}",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Text(
+                        text = book.title.take(6),
+                        fontSize = 11.sp,
+                        color = Color.DarkGray,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.width(16.dp))

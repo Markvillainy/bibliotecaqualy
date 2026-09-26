@@ -1,11 +1,7 @@
 package com.example.bibliotecaqualy.screens
 
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,6 +20,7 @@ import coil.compose.AsyncImage
 import com.example.bibliotecaqualy.model.Book
 import com.example.bibliotecaqualy.ui.theme.*
 import com.example.bibliotecaqualy.viewmodel.BookViewModel
+import com.google.firebase.auth.FirebaseAuth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,25 +29,21 @@ fun AddEditBookScreen(
     bookToEdit: Book? = null,
     onComplete: () -> Unit
 ) {
+    // Obtención de los datos del usuario actual desde Firebase
+    val currentUser = FirebaseAuth.getInstance().currentUser
+    val currentUserId = currentUser?.uid ?: ""
+    val currentUserName = currentUser?.displayName ?: "Usuario Qualy"
+
     var title by remember { mutableStateOf(bookToEdit?.title ?: "") }
     var author by remember { mutableStateOf(bookToEdit?.author ?: "") }
     var category by remember { mutableStateOf(bookToEdit?.category ?: "Literatura") }
     var edition by remember { mutableStateOf(bookToEdit?.edition ?: "") }
     var state by remember { mutableStateOf(bookToEdit?.state ?: "Excelente") }
-
-    // CORRECCIÓN LÍNEA 40: Asignar directamente coverUri si ya es de tipo Uri?
-    var imageUri by remember { mutableStateOf<Uri?>(bookToEdit?.coverUri) }
+    var coverUrl by remember { mutableStateOf(bookToEdit?.coverUrl ?: "") }
 
     // Opciones para la categoría
     val categories = listOf("Literatura", "Matemáticas", "Ciencias", "Didáctico", "Otros")
     var expandedCategory by remember { mutableStateOf(false) }
-
-    // Launcher para abrir la Galería
-    val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) imageUri = uri
-    }
 
     Column(
         modifier = Modifier
@@ -68,28 +61,27 @@ fun AddEditBookScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Contenedor para Subir / Mostrar Portada
+        // Vista previa de la Portada vía URL
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(150.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(Color.White)
-                .border(1.dp, Color.LightGray, RoundedCornerShape(12.dp))
-                .clickable { galleryLauncher.launch("image/*") },
+                .border(1.dp, Color.LightGray, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center
         ) {
-            if (imageUri != null) {
+            if (coverUrl.isNotBlank()) {
                 AsyncImage(
-                    model = imageUri,
-                    contentDescription = "Portada",
+                    model = coverUrl,
+                    contentDescription = "Vista previa de la portada",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
             } else {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Subir Foto de Portada", color = Color.Gray, fontWeight = FontWeight.SemiBold)
-                    Text("Formatos permitidos: JPG, PNG", fontSize = 12.sp, color = Color.Gray)
+                    Text("Vista previa de la portada", color = Color.Gray, fontWeight = FontWeight.SemiBold)
+                    Text("Ingresa una URL abajo para previsualizar", fontSize = 12.sp, color = Color.Gray)
                 }
             }
         }
@@ -112,6 +104,18 @@ fun AddEditBookScreen(
             onValueChange = { author = it },
             label = { Text("Autor") },
             modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Campo URL de la Portada
+        OutlinedTextField(
+            value = coverUrl,
+            onValueChange = { coverUrl = it },
+            label = { Text("URL de la Portada (Imagen Web)") },
+            placeholder = { Text("https://ejemplo.com/imagen.jpg") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -165,7 +169,6 @@ fun AddEditBookScreen(
         Button(
             onClick = {
                 if (title.isNotEmpty() && author.isNotEmpty()) {
-                    // CORRECCIÓN LÍNEA 173: Pasar 'coverUri = imageUri' directamente
                     val newOrUpdatedBook = Book(
                         id = bookToEdit?.id ?: java.util.UUID.randomUUID().toString(),
                         title = title,
@@ -173,7 +176,10 @@ fun AddEditBookScreen(
                         category = category,
                         edition = edition,
                         state = state,
-
+                        coverUrl = coverUrl.trim(),
+                        ownerId = currentUserId,
+                        ownerName = currentUserName,
+                        availabilityStatus = bookToEdit?.availabilityStatus ?: "Disponible"
                     )
 
                     if (bookToEdit == null) {
@@ -191,7 +197,7 @@ fun AddEditBookScreen(
             shape = RoundedCornerShape(10.dp)
         ) {
             Text(
-                if (bookToEdit == null) "Publicar Libro" else "Guardar Cambios",
+                text = if (bookToEdit == null) "Publicar Libro" else "Guardar Cambios",
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
