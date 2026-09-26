@@ -5,6 +5,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,12 +27,15 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.bibliotecaqualy.model.Book
 import com.example.bibliotecaqualy.ui.theme.*
+import com.example.bibliotecaqualy.util.swipeGestures
 import com.example.bibliotecaqualy.viewmodel.BookViewModel
 
 @Composable
 fun HomeScreen(
     viewModel: BookViewModel,
-    onBookClick: (Book) -> Unit = {}
+    onBookClick: (Book) -> Unit = {},
+    onSwipeRight: (() -> Unit)? = null,
+    onSwipeLeft: (() -> Unit)? = null
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("Todos") }
@@ -53,107 +59,137 @@ fun HomeScreen(
         matchesCategory && matchesSearch
     }
 
-    Column(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(QualyBackground)
-            .padding(horizontal = 16.dp)
-    ) {
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Encabezado
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Biblioteca Qualy",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = QualyGreen
+            .swipeGestures(
+                onSwipeRight = onSwipeRight,
+                onSwipeLeft = onSwipeLeft
             )
-            IconButton(onClick = { }) {
-                Icon(
-                    imageVector = Icons.Default.Notifications,
-                    contentDescription = "Notificaciones",
-                    tint = Color.Black
-                )
-            }
+    ) {
+        val screenWidth = maxWidth
+        val isWideScreen = screenWidth > 600.dp
+        val columns = when {
+            screenWidth > 840.dp -> 4
+            screenWidth > 600.dp -> 3
+            else -> 2
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Barra de Búsqueda
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
-            placeholder = { Text("¿Qué libro buscas hoy?", color = Color.Gray) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(25.dp)),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = Color.White,
-                unfocusedContainerColor = Color.White,
-                disabledContainerColor = Color.White,
-                focusedBorderColor = Color.Transparent,
-                unfocusedBorderColor = Color.Transparent
-            ),
-            singleLine = true
-        )
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
+        ) {
+            Spacer(modifier = Modifier.height(16.dp))
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Chips de Categorías
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(categories) { category ->
-                val isSelected = category == selectedCategory
-                Surface(
-                    shape = CircleShape,
-                    color = if (isSelected) QualyGreen else Color.White,
-                    modifier = Modifier.clickable { selectedCategory = category }
-                ) {
-                    Text(
-                        text = category,
-                        color = if (isSelected) Color.White else Color.Black,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        fontSize = 14.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+            // Encabezado
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Biblioteca Qualy",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = QualyGreen
+                )
+                IconButton(onClick = { }) {
+                    Icon(
+                        imageVector = Icons.Default.Notifications,
+                        contentDescription = "Notificaciones",
+                        tint = Color.Black
                     )
                 }
             }
-        }
 
-        Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-        // Título de sección
-        Text(
-            text = "Libros Disponibles",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Lista de Libros Filtrados
-        if (filteredBooks.isEmpty()) {
-            Box(
+            // Barra de Búsqueda
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("¿Qué libro buscas hoy?", color = Color.Gray) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("No se encontraron libros.", color = Color.Gray)
+                    .clip(RoundedCornerShape(25.dp)),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White,
+                    disabledContainerColor = Color.White,
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent
+                ),
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Chips de Categorías
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(categories) { category ->
+                    val isSelected = category == selectedCategory
+                    Surface(
+                        shape = CircleShape,
+                        color = if (isSelected) QualyGreen else Color.White,
+                        modifier = Modifier.clickable { selectedCategory = category }
+                    ) {
+                        Text(
+                            text = category,
+                            color = if (isSelected) Color.White else Color.Black,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            fontSize = 14.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                }
             }
-        } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                items(filteredBooks) { book ->
-                    BookHomeCard(book = book, onClick = { onBookClick(book) })
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Título de sección
+            Text(
+                text = "Libros Disponibles",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Lista o Grid de Libros Filtrados (Responsivo)
+            if (filteredBooks.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No se encontraron libros.", color = Color.Gray)
+                }
+            } else {
+                if (isWideScreen) {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(columns),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        items(filteredBooks) { book ->
+                            BookHomeCard(book = book, onClick = { onBookClick(book) })
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        items(filteredBooks) { book ->
+                            BookHomeCard(book = book, onClick = { onBookClick(book) })
+                        }
+                    }
                 }
             }
         }
