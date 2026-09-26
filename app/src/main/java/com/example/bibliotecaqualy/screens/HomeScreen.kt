@@ -36,8 +36,11 @@ fun HomeScreen(
 
     val categories = listOf("Todos", "Matemáticas", "Literatura", "Ciencias", "Didáctico", "Otros")
 
-    // Lógica de filtrado en tiempo real
-    val filteredBooks = viewModel.books.filter { book ->
+    // 1. Recolectar el StateFlow de libros a un estado observable por Compose
+    val books by viewModel.books.collectAsState()
+
+    // 2. Lógica de filtrado en tiempo real sobre la lista recolectada
+    val filteredBooks = books.filter { book ->
         val matchesCategory = if (selectedCategory == "Todos") {
             true
         } else {

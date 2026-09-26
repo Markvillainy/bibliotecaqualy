@@ -3,15 +3,18 @@ package com.example.bibliotecaqualy.viewmodel
 import android.content.Context
 import android.util.Log
 import android.widget.Toast
-import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.ViewModel
 import com.example.bibliotecaqualy.model.Book
 import com.example.bibliotecaqualy.model.Request
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.util.UUID
 
-// Modelo de datos para las tarjetas de Actividad Reciente
 data class ActivityItem(
     val title: String,
     val description: String,
@@ -23,98 +26,108 @@ class BookViewModel : ViewModel() {
     private val db = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
 
-    private val _books = mutableStateListOf<Book>()
-    val books: List<Book> get() = _books
+    // Manejo de estado reactivo mediante StateFlow
+    private val _books = MutableStateFlow<List<Book>>(emptyList())
+    val books: StateFlow<List<Book>> = _books.asStateFlow()
 
-    // Lista de solicitudes en tiempo real para el Buzón
-    private val _requests = mutableStateListOf<Request>()
-    val requests: List<Request> get() = _requests
+    private val _requests = MutableStateFlow<List<Request>>(emptyList())
+    val requests: StateFlow<List<Request>> = _requests.asStateFlow()
+
+    private var booksListener: ListenerRegistration? = null
+    private var requestsListener: ListenerRegistration? = null
 
     init {
-        listenToBookUpdates()
-        listenToRequestUpdates()
+        listenToUpdates()
     }
 
-    private fun listenToBookUpdates() {
-        db.collection("books")
+    fun listenToUpdates() {
+        booksListener?.remove()
+        requestsListener?.remove()
+
+        booksListener = db.collection("books")
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    Log.e("BookViewModel", "Error al consultar libros en Firestore", error)
+                    Log.e("BookViewModel", "Error al consultar libros", error)
                     return@addSnapshotListener
                 }
-
                 if (snapshot != null) {
-                    _books.clear()
+                    val bookList = mutableListOf<Book>()
                     for (doc in snapshot.documents) {
                         try {
-                            val book = doc.toObject(Book::class.java)
-                            if (book != null) {
-                                _books.add(book)
-                            }
+                            doc.toObject(Book::class.java)?.let { bookList.add(it) }
                         } catch (e: Exception) {
-                            Log.e("BookViewModel", "Error deserializando el libro ${doc.id}", e)
+                            Log.e("BookViewModel", "Error deserializando libro", e)
                         }
                     }
+                    _books.value = bookList
+                }
+            }
+
+        requestsListener = db.collection("requests")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e("BookViewModel", "Error al consultar solicitudes", error)
+                    return@addSnapshotListener
+                }
+                if (snapshot != null) {
+                    val requestList = mutableListOf<Request>()
+                    for (doc in snapshot.documents) {
+                        try {
+                            doc.toObject(Request::class.java)?.let { requestList.add(it) }
+                        } catch (e: Exception) {
+                            Log.e("BookViewModel", "Error deserializando solicitud", e)
+                        }
+                    }
+                    _requests.value = requestList
                 }
             }
     }
 
-    private fun listenToRequestUpdates() {
-        db.collection("requests")
-            .addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    Log.e("BookViewModel", "Error al consultar solicitudes en Firestore", error)
-                    return@addSnapshotListener
-                }
+    // --- AUTENTICACIÓN CON GOOGLE ---
 
-                if (snapshot != null) {
-                    _requests.clear()
-                    for (doc in snapshot.documents) {
-                        try {
-                            val request = doc.toObject(Request::class.java)
-                            if (request != null) {
-                                _requests.add(request)
-                            }
-                        } catch (e: Exception) {
-                            Log.e("BookViewModel", "Error deserializando solicitud ${doc.id}", e)
-                        }
-                    }
-                }
+    fun signInWithGoogle(idToken: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        val credential = GoogleAuthProvider.getCredential(idToken, null)
+
+        auth.signInWithCredential(credential)
+            .addOnSuccessListener {
+                listenToUpdates() // Reinicia listeners para el usuario autenticado
+                onSuccess()
+            }
+            .addOnFailureListener { exception ->
+                onError(exception.localizedMessage ?: "Error al autenticar con Google")
             }
     }
 
-    // --- FUNCIONES PARA PERFIL Y ESTADÍSTICAS ---
+    // --- MÉTODOS DE PERFIL Y ACTIVIDAD ---
 
-    // 1. Contador de Préstamos Aceptados
-    fun getActiveLoansCount(currentUserId: String): Int {
-        return _requests.count { request ->
-            (request.applicantId == currentUserId || request.ownerId == currentUserId) &&
+    fun getActiveLoansCount(currentUserId: String? = null): Int {
+        val targetUid = currentUserId ?: auth.currentUser?.uid ?: return 0
+        return _requests.value.count { request ->
+            (request.applicantId == targetUid || request.ownerId == targetUid) &&
                     request.status.equals("ACEPTADA", ignoreCase = true)
         }
     }
 
-    // 2. Generador de Lista de Actividad Reciente (Publicaciones y Préstamos Aceptados)
-    fun getRecentActivity(currentUserId: String): List<ActivityItem> {
+    fun getRecentActivity(currentUserId: String? = null): List<ActivityItem> {
+        val targetUid = currentUserId ?: auth.currentUser?.uid ?: return emptyList()
         val activityList = mutableListOf<ActivityItem>()
 
-        // Libros publicados por el usuario
-        _books.filter { it.ownerId == currentUserId }.forEach { book ->
+        _books.value.filter { it.ownerId == targetUid }.forEach { book ->
             activityList.add(
                 ActivityItem(
                     title = "Libro publicado",
                     description = "${book.title} - ${book.author}",
                     timeAgo = "Reciente",
-                    timestamp = System.currentTimeMillis() // Puedes mapear book.timestamp si existe en tu modelo Book
+                    timestamp = System.currentTimeMillis()
                 )
             )
         }
 
-        // Solicitudes del usuario que han sido ACEPTADAS
-        _requests.filter {
-            (it.applicantId == currentUserId || it.ownerId == currentUserId) &&
+        _requests.value.filter {
+            (it.applicantId == targetUid || it.ownerId == targetUid) &&
                     it.status.equals("ACEPTADA", ignoreCase = true)
         }.forEach { req ->
-            val otherPerson = if (req.ownerId == currentUserId) req.requesterName else req.ownerName
+            val otherPerson = if (req.ownerId == targetUid) req.requesterName else req.ownerName
             activityList.add(
                 ActivityItem(
                     title = "Préstamo registrado",
@@ -125,11 +138,10 @@ class BookViewModel : ViewModel() {
             )
         }
 
-        // Ordenar por más reciente primero
         return activityList.sortedByDescending { it.timestamp }
     }
 
-    // --- OPERACIONES EN FIRESTORE ---
+    // --- OPERACIONES DE FIRESTORE ---
 
     fun addBook(book: Book, onSuccess: () -> Unit = {}) {
         val currentUser = auth.currentUser
@@ -162,7 +174,6 @@ class BookViewModel : ViewModel() {
             .addOnFailureListener { e -> Log.e("BookViewModel", "Error al eliminar", e) }
     }
 
-    // Enviar solicitud desde el detalle del libro
     fun sendRequest(context: Context, book: Book) {
         val currentUser = auth.currentUser
         val currentUserId = currentUser?.uid ?: ""
@@ -200,7 +211,6 @@ class BookViewModel : ViewModel() {
             }
     }
 
-    // Aceptar o Rechazar solicitud desde el Buzón
     fun updateRequestStatus(context: Context, requestId: String, newStatus: String) {
         db.collection("requests").document(requestId)
             .update("status", newStatus)
@@ -212,5 +222,11 @@ class BookViewModel : ViewModel() {
                 Toast.makeText(context, "Error al actualizar el estado", Toast.LENGTH_SHORT).show()
                 Log.e("BookViewModel", "Error al actualizar solicitud", e)
             }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        booksListener?.remove()
+        requestsListener?.remove()
     }
 }

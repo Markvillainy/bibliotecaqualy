@@ -7,6 +7,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -17,18 +19,21 @@ import androidx.compose.ui.unit.sp
 import com.example.bibliotecaqualy.ui.theme.QualyBackground
 import com.example.bibliotecaqualy.ui.theme.QualyGreen
 import com.example.bibliotecaqualy.viewmodel.BookViewModel
-import com.google.firebase.auth.FirebaseAuth // Importante
+import com.google.firebase.auth.FirebaseAuth
 
 @Composable
 fun BuzonScreen(viewModel: BookViewModel) {
     val context = LocalContext.current
 
-    // 1. Obtener el usuario activo actual
+    // 1. Recolectar el StateFlow para que Compose redibuje en tiempo real
+    val requests by viewModel.requests.collectAsState()
+
+    // 2. Obtener el usuario activo actual
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
     val currentUserEmail = FirebaseAuth.getInstance().currentUser?.email ?: ""
 
-    // 2. Filtrar solicitudes PENDIENTES donde el usuario sea el DUEÑO del libro
-    val pendingRequests = viewModel.requests.filter { req ->
+    // 3. Filtrar solicitudes PENDIENTES sobre la lista recolectada
+    val pendingRequests = requests.filter { req ->
         req.status == "PENDIENTE" && (
                 (currentUserId.isNotEmpty() && req.ownerId == currentUserId) ||
                         (currentUserEmail.isNotEmpty() && req.ownerName.equals(currentUserEmail, ignoreCase = true))

@@ -12,7 +12,20 @@
           "package_name": "com.example.bibliotecaqualy"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "993124868869-c2vmkrh2cvof07eaeqfr2snn6hbjc6o0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.bibliotecaqualy",
+            "certificate_hash": "48a1890b4681550e020f82a4910160f29b3b5435"
+          }
+        },
+        {
+          "client_id": "993124868869-k9gha04up45ejhasge8cq9onuadkmdgr.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCsGnPZhrRrMidthYVKw9OGjl3kco_O-W8"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "993124868869-k9gha04up45ejhasge8cq9onuadkmdgr.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

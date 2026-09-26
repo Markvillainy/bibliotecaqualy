@@ -50,8 +50,11 @@ fun PerfilScreen(
     var newUsernameInput by remember { mutableStateOf("") }
     var newPhotoUrlInput by remember { mutableStateOf("") }
 
-    // Datos reactivos
-    val myBooksCount = viewModel.books.count { it.ownerId == currentUserId }
+    // 1. Recolectar la lista de libros desde el StateFlow
+    val books by viewModel.books.collectAsState()
+
+    // 2. Datos reactivos
+    val myBooksCount = books.count { it.ownerId == currentUserId }
     val loansCount = viewModel.getActiveLoansCount(currentUserId)
     val recentActivities = viewModel.getRecentActivity(currentUserId)
 
@@ -157,7 +160,7 @@ fun PerfilScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Tarjetas de Estadísticas (Publicados y Préstamos actualizados)
+        // Tarjetas de Estadísticas
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
@@ -324,7 +327,7 @@ fun PerfilScreen(
     }
 }
 
-// Componente para la Tarjeta de Actividad (Estilo Mockup)
+// Componente para la Tarjeta de Actividad
 @Composable
 private fun ActivityCard(
     title: String,

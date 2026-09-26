@@ -38,8 +38,9 @@ class MainActivity : ComponentActivity() {
                 if (!isLoggedIn) {
                     // Pantalla de Inicio de Sesión
                     LoginScreen(
+                        viewModel = viewModel,
                         onLoginSuccess = {
-                            isLoggedIn = true
+                            // Navegar a la pantalla principal
                         }
                     )
                 } else {

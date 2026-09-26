@@ -12,19 +12,32 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.credentials.CredentialManager
+import androidx.credentials.GetCredentialRequest
 import com.example.bibliotecaqualy.ui.theme.QualyBackground
 import com.example.bibliotecaqualy.ui.theme.QualyGreen
+import com.example.bibliotecaqualy.viewmodel.BookViewModel
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.launch
 
 @Composable
-fun LoginScreen(onLoginSuccess: () -> Unit) {
+fun LoginScreen(
+    viewModel: BookViewModel,
+    onLoginSuccess: () -> Unit
+) {
     val context = LocalContext.current
     val auth = FirebaseAuth.getInstance()
+    val coroutineScope = rememberCoroutineScope()
 
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isRegistering by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
+
+    // Sustituye con tu Web Client ID obtenido de Firebase Console
+    val webClientId = "993124868869-k9gha04up45ejhasge8cq9onuadkmdgr.apps.googleusercontent.com"
 
     Column(
         modifier = Modifier
@@ -71,6 +84,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
         if (isLoading) {
             CircularProgressIndicator(color = QualyGreen)
         } else {
+            // Botón principal de correo / contraseña
             Button(
                 onClick = {
                     if (email.isBlank() || password.isBlank()) {
@@ -108,6 +122,69 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 shape = RoundedCornerShape(10.dp)
             ) {
                 Text(if (isRegistering) "Registrarse" else "Ingresar", color = Color.White)
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Separador visual
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Divider(modifier = Modifier.weight(1f), color = Color.LightGray)
+                Text(" O ", color = Color.Gray, modifier = Modifier.padding(horizontal = 8.dp))
+                Divider(modifier = Modifier.weight(1f), color = Color.LightGray)
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Botón de Continuar con Google
+            OutlinedButton(
+                onClick = {
+                    coroutineScope.launch {
+                        try {
+                            isLoading = true
+                            val credentialManager = CredentialManager.create(context)
+                            val googleIdOption = GetGoogleIdOption.Builder()
+                                .setFilterByAuthorizedAccounts(false)
+                                .setServerClientId(webClientId)
+                                .setAutoSelectEnabled(false)
+                                .build()
+
+                            val request = GetCredentialRequest.Builder()
+                                .addCredentialOption(googleIdOption)
+                                .build()
+
+                            val result = credentialManager.getCredential(
+                                request = request,
+                                context = context
+                            )
+
+                            val googleIdCredential = GoogleIdTokenCredential.createFrom(result.credential.data)
+
+                            viewModel.signInWithGoogle(
+                                idToken = googleIdCredential.idToken,
+                                onSuccess = {
+                                    isLoading = false
+                                    onLoginSuccess()
+                                },
+                                onError = { errorMsg ->
+                                    isLoading = false
+                                    Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show()
+                                }
+                            )
+                        } catch (e: Exception) {
+                            isLoading = false
+                            Toast.makeText(context, "Error con Google Sign-In: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Text("Continuar con Google", color = Color.Black)
             }
 
             Spacer(modifier = Modifier.height(12.dp))
