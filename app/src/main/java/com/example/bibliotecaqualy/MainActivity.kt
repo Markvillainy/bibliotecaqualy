@@ -1,8 +1,12 @@
 package com.example.bibliotecaqualy
 
+import android.Manifest
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
@@ -20,6 +24,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import com.example.bibliotecaqualy.model.Book
 import com.example.bibliotecaqualy.screens.*
 import com.example.bibliotecaqualy.ui.theme.QualyGreen
+import com.example.bibliotecaqualy.util.swipeGestures
 import com.example.bibliotecaqualy.viewmodel.BookViewModel
 import com.google.firebase.auth.FirebaseAuth
 
@@ -30,17 +35,25 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
-                // Comprueba si hay una sesión activa de Firebase al iniciar
-                var isLoggedIn by remember {
-                    mutableStateOf(FirebaseAuth.getInstance().currentUser != null)
+                // Escucha en TIEMPO REAL los cambios de sesión (Suscripción a Firebase)
+                var currentUser by remember { mutableStateOf(FirebaseAuth.getInstance().currentUser) }
+
+                DisposableEffect(Unit) {
+                    val authListener = FirebaseAuth.AuthStateListener { auth ->
+                        currentUser = auth.currentUser
+                    }
+                    FirebaseAuth.getInstance().addAuthStateListener(authListener)
+                    onDispose {
+                        FirebaseAuth.getInstance().removeAuthStateListener(authListener)
+                    }
                 }
 
-                if (!isLoggedIn) {
+                if (currentUser == null) {
                     // Pantalla de Inicio de Sesión
                     LoginScreen(
                         viewModel = viewModel,
                         onLoginSuccess = {
-                            // Navegar a la pantalla principal
+                            // Al ser exitoso, authListener cambiará automáticamente el estado
                         }
                     )
                 } else {
@@ -49,7 +62,6 @@ class MainActivity : ComponentActivity() {
                         viewModel = viewModel,
                         onLogout = {
                             FirebaseAuth.getInstance().signOut()
-                            isLoggedIn = false // Redirige de inmediato al LoginScreen
                         }
                     )
                 }
@@ -66,6 +78,18 @@ fun MainAppContent(
     var currentTab by remember { mutableIntStateOf(0) }
     var bookToEdit by remember { mutableStateOf<Book?>(null) }
     var selectedBookForDetail by remember { mutableStateOf<Book?>(null) }
+
+    // Permisos de notificaciones para Android 13+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = {}
+    )
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     if (selectedBookForDetail != null) {
         BookDetailScreen(
@@ -104,11 +128,31 @@ fun MainAppContent(
                 }
             }
         ) { innerPadding ->
-            Box(modifier = Modifier.padding(innerPadding)) {
+            Box(
+                modifier = Modifier
+                    .padding(innerPadding)
+                    // Habilita el cambio de pestañas deslizando la pantalla a los lados
+                    .swipeGestures(
+                        onSwipeLeft = {
+                            if (currentTab < 4) {
+                                if (currentTab != 1) bookToEdit = null
+                                currentTab += 1
+                            }
+                        },
+                        onSwipeRight = {
+                            if (currentTab > 0) {
+                                if (currentTab != 3) bookToEdit = null
+                                currentTab -= 1
+                            }
+                        }
+                    )
+            ) {
                 when (currentTab) {
                     0 -> HomeScreen(
                         viewModel = viewModel,
-                        onBookClick = { book -> selectedBookForDetail = book }
+                        onBookClick = { book -> selectedBookForDetail = book },
+                        onSwipeLeft = { if (currentTab < 4) currentTab += 1 },
+                        onSwipeRight = { if (currentTab > 0) currentTab -= 1 }
                     )
                     1 -> MyBooksScreen(
                         viewModel = viewModel,
