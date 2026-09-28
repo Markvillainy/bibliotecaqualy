@@ -287,7 +287,7 @@ class BookViewModel : ViewModel() {
             }
     }
 
-    // 3. Se acepta o rechaza -> Notificación para el SOLICITANTE
+    // 3. Se acepta o rechaza -> Notificación para el SOLICITANTE y actualización de estado del libro
     fun updateRequestStatus(context: Context, requestId: String, newStatus: String) {
         db.collection("requests").document(requestId)
             .update("status", newStatus)
@@ -305,6 +305,20 @@ class BookViewModel : ViewModel() {
                         title = "Respuesta de Solicitud",
                         message = "${targetRequest.ownerName} $estadoTexto tu solicitud para el libro '${targetRequest.bookTitle}'."
                     )
+
+                    // SI SE ACEPTA LA SOLICITUD -> CAMBIAR ESTADO DEL LIBRO A "En Préstamo"
+                    if (newStatus == "ACEPTADA") {
+                        // Se actualizan ambas propiedades por compatibilidad de nombres
+                        val updates = mapOf(
+                            "availabilityStatus" to "En Préstamo",
+                            "status" to "En Préstamo"
+                        )
+                        db.collection("books").document(targetRequest.bookId)
+                            .update(updates)
+                            .addOnFailureListener { e ->
+                                Log.e("BookViewModel", "Error al actualizar estado del libro", e)
+                            }
+                    }
                 }
             }
             .addOnFailureListener { e ->

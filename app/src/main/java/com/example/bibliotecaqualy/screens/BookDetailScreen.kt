@@ -37,6 +37,10 @@ fun BookDetailScreen(
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
     val isMyBook = book.ownerId == currentUserId
 
+    // Tomar el estado (soportando ambas propiedades del modelo)
+    val currentStatus = book.availabilityStatus
+    val isAvailable = currentStatus.equals("Disponible", ignoreCase = true)
+
     // Estado para bloquear toques múltiples
     var isSending by remember { mutableStateOf(false) }
 
@@ -121,7 +125,7 @@ fun BookDetailScreen(
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             SuggestionChip(onClick = {}, label = { Text(book.category) })
                             SuggestionChip(onClick = {}, label = { Text(book.state) })
-                            SuggestionChip(onClick = {}, label = { Text("• ${book.availabilityStatus}") })
+                            AvailabilityChip(status = currentStatus)
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
@@ -142,9 +146,10 @@ fun BookDetailScreen(
                         // Botón de acción
                         ActionButton(
                             isMyBook = isMyBook,
+                            isAvailable = isAvailable,
                             isSending = isSending,
                             onClick = {
-                                if (!isSending) {
+                                if (!isSending && isAvailable) {
                                     isSending = true
                                     viewModel.sendRequest(context, book)
                                     NotificationHelper.showNotification(
@@ -200,7 +205,7 @@ fun BookDetailScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         SuggestionChip(onClick = {}, label = { Text(book.category) })
                         SuggestionChip(onClick = {}, label = { Text(book.state) })
-                        SuggestionChip(onClick = {}, label = { Text("• ${book.availabilityStatus}") })
+                        AvailabilityChip(status = currentStatus)
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -221,9 +226,10 @@ fun BookDetailScreen(
                     // Botón de acción
                     ActionButton(
                         isMyBook = isMyBook,
+                        isAvailable = isAvailable,
                         isSending = isSending,
                         onClick = {
-                            if (!isSending) {
+                            if (!isSending && isAvailable) {
                                 isSending = true
                                 viewModel.sendRequest(context, book)
                                 NotificationHelper.showNotification(
@@ -242,25 +248,57 @@ fun BookDetailScreen(
 }
 
 @Composable
+private fun AvailabilityChip(status: String) {
+    val isAvailable = status.equals("Disponible", ignoreCase = true)
+
+    val chipContainerColor = if (isAvailable) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
+    val chipTextColor = if (isAvailable) Color(0xFF2E7D32) else Color(0xFFC62828)
+    val displayText = if (isAvailable) "• Disponible" else "• En Préstamo"
+
+    SuggestionChip(
+        onClick = {},
+        label = {
+            Text(
+                text = displayText,
+                color = chipTextColor,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        colors = SuggestionChipDefaults.suggestionChipColors(
+            containerColor = chipContainerColor
+        )
+    )
+}
+
+@Composable
 private fun ActionButton(
     isMyBook: Boolean,
+    isAvailable: Boolean,
     isSending: Boolean,
     onClick: () -> Unit
 ) {
     if (!isMyBook) {
         Button(
-            enabled = !isSending,
+            enabled = !isSending && isAvailable,
             onClick = onClick,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(50.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = QualyGreen),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = QualyGreen,
+                disabledContainerColor = Color.LightGray
+            ),
             shape = RoundedCornerShape(12.dp)
         ) {
             if (isSending) {
                 CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
             } else {
-                Text("Solicitar Intercambio / Préstamo", color = Color.White, fontSize = 16.sp)
+                Text(
+                    text = if (isAvailable) "Solicitar Intercambio / Préstamo" else "No disponible (En Préstamo)",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     } else {

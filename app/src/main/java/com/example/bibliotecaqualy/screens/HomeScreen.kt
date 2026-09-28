@@ -197,8 +197,33 @@ fun HomeScreen(
     }
 }
 
+// --- StatusBadge REUTILIZABLE ---
+@Composable
+fun StatusBadge(status: String) {
+    val isAvailable = status.equals("Disponible", ignoreCase = true)
+
+    val backgroundColor = if (isAvailable) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
+    val textColor = if (isAvailable) Color(0xFF2E7D32) else Color(0xFFC62828)
+    val displayText = if (isAvailable) "• Disponible" else "• En Préstamo"
+
+    Surface(
+        shape = RoundedCornerShape(6.dp),
+        color = backgroundColor
+    ) {
+        Text(
+            text = displayText,
+            fontSize = 11.sp,
+            color = textColor,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+        )
+    }
+}
+
 @Composable
 fun BookHomeCard(book: Book, onClick: () -> Unit) {
+    val currentStatus = book.availabilityStatus
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -213,7 +238,7 @@ fun BookHomeCard(book: Book, onClick: () -> Unit) {
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Portada de libro con AsyncImage
+            // Portada de libro
             Box(
                 modifier = Modifier
                     .size(70.dp, 90.dp)
@@ -270,19 +295,8 @@ fun BookHomeCard(book: Book, onClick: () -> Unit) {
                         )
                     }
 
-                    // Chip de Estado de Disponibilidad
-                    val isAvailable = book.availabilityStatus.equals("Disponible", ignoreCase = true)
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = if (isAvailable) Color(0xFFE8F5E9) else Color(0xFFFFF3E0)
-                    ) {
-                        Text(
-                            text = "• ${book.availabilityStatus}",
-                            fontSize = 11.sp,
-                            color = if (isAvailable) Color(0xFF2E7D32) else Color(0xFFE65100),
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
+                    // StatusBadge integrado
+                    StatusBadge(status = currentStatus)
                 }
             }
         }
