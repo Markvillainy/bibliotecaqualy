@@ -5,6 +5,7 @@ import android.util.Log
 import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import com.example.bibliotecaqualy.model.Book
+import com.example.bibliotecaqualy.model.NotificationItem
 import com.example.bibliotecaqualy.model.Request
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
@@ -33,8 +34,13 @@ class BookViewModel : ViewModel() {
     private val _requests = MutableStateFlow<List<Request>>(emptyList())
     val requests: StateFlow<List<Request>> = _requests.asStateFlow()
 
+    // --- NOTIFICACIONES FILTRADAS POR USUARIO ---
+    private val _notifications = MutableStateFlow<List<NotificationItem>>(emptyList())
+    val notifications: StateFlow<List<NotificationItem>> = _notifications.asStateFlow()
+
     private var booksListener: ListenerRegistration? = null
     private var requestsListener: ListenerRegistration? = null
+    private var notificationsListener: ListenerRegistration? = null
 
     init {
         listenToUpdates()
@@ -43,7 +49,11 @@ class BookViewModel : ViewModel() {
     fun listenToUpdates() {
         booksListener?.remove()
         requestsListener?.remove()
+        notificationsListener?.remove()
 
+        val currentUid = auth.currentUser?.uid ?: ""
+
+        // Escuchar Libros
         booksListener = db.collection("books")
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
@@ -63,6 +73,7 @@ class BookViewModel : ViewModel() {
                 }
             }
 
+        // Escuchar Solicitudes
         requestsListener = db.collection("requests")
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
@@ -81,6 +92,50 @@ class BookViewModel : ViewModel() {
                     _requests.value = requestList
                 }
             }
+
+        // Escuchar Notificaciones SOLO del usuario actual
+        if (currentUid.isNotEmpty()) {
+            notificationsListener = db.collection("notifications")
+                .whereEqualTo("userId", currentUid)
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) {
+                        Log.e("BookViewModel", "Error al consultar notificaciones", error)
+                        return@addSnapshotListener
+                    }
+                    if (snapshot != null) {
+                        val notifList = mutableListOf<NotificationItem>()
+                        for (doc in snapshot.documents) {
+                            try {
+                                doc.toObject(NotificationItem::class.java)?.let { notifList.add(it) }
+                            } catch (e: Exception) {
+                                Log.e("BookViewModel", "Error deserializando notificación", e)
+                            }
+                        }
+                        _notifications.value = notifList.sortedByDescending { it.timestamp }
+                    }
+                }
+        } else {
+            _notifications.value = emptyList()
+        }
+    }
+
+    // --- FUNCIÓN PARA GUARDAR NOTIFICACIÓN EN FIRESTORE AL USUARIO DESTINO ---
+    fun addNotificationToUser(targetUserId: String, title: String, message: String) {
+        if (targetUserId.isEmpty()) return
+
+        val notifId = UUID.randomUUID().toString()
+        val newNotification = NotificationItem(
+            id = notifId,
+            userId = targetUserId,
+            title = title,
+            message = message,
+            timestamp = System.currentTimeMillis()
+        )
+
+        db.collection("notifications").document(notifId).set(newNotification)
+            .addOnFailureListener { e ->
+                Log.e("BookViewModel", "Error guardando notificación", e)
+            }
     }
 
     // --- AUTENTICACIÓN CON GOOGLE ---
@@ -90,7 +145,7 @@ class BookViewModel : ViewModel() {
 
         auth.signInWithCredential(credential)
             .addOnSuccessListener {
-                listenToUpdates() // Reinicia listeners para el usuario autenticado
+                listenToUpdates()
                 onSuccess()
             }
             .addOnFailureListener { exception ->
@@ -141,8 +196,9 @@ class BookViewModel : ViewModel() {
         return activityList.sortedByDescending { it.timestamp }
     }
 
-    // --- OPERACIONES DE FIRESTORE ---
+    // --- OPERACIONES DE FIRESTORE CON EVENTOS DIRIGIDOS AL USUARIO CORRESPONDIENTE ---
 
+    // 1. Un usuario publica un libro -> Notificación para ÉL MISMO
     fun addBook(book: Book, onSuccess: () -> Unit = {}) {
         val currentUser = auth.currentUser
         val currentUserId = currentUser?.uid ?: ""
@@ -156,6 +212,11 @@ class BookViewModel : ViewModel() {
         db.collection("books").document(newBook.id).set(newBook)
             .addOnSuccessListener {
                 Log.d("BookViewModel", "Libro publicado con éxito: ${newBook.id}")
+                addNotificationToUser(
+                    targetUserId = currentUserId,
+                    title = "Libro publicado",
+                    message = "Tu libro '${newBook.title}' ya se encuentra disponible en el catálogo."
+                )
                 onSuccess()
             }
             .addOnFailureListener { e ->
@@ -174,6 +235,7 @@ class BookViewModel : ViewModel() {
             .addOnFailureListener { e -> Log.e("BookViewModel", "Error al eliminar", e) }
     }
 
+    // 2. Un usuario pide un libro -> Notificación para el DUEÑO DEL LIBRO (quien recibe la solicitud)
     fun sendRequest(context: Context, book: Book) {
         val currentUser = auth.currentUser
         val currentUserId = currentUser?.uid ?: ""
@@ -200,6 +262,20 @@ class BookViewModel : ViewModel() {
                     "Solicitud enviada a ${book.ownerName.ifEmpty { "el usuario" }}",
                     Toast.LENGTH_SHORT
                 ).show()
+
+                // Notificación al DUEÑO del libro
+                addNotificationToUser(
+                    targetUserId = book.ownerId,
+                    title = "Nueva Solicitud",
+                    message = "$currentUserEmail ha solicitado tu libro '${book.title}'."
+                )
+
+                // Notificación de confirmación al SOLICITANTE
+                addNotificationToUser(
+                    targetUserId = currentUserId,
+                    title = "Solicitud Enviada",
+                    message = "Has solicitado el libro '${book.title}' a ${book.ownerName}."
+                )
             }
             .addOnFailureListener { e ->
                 Toast.makeText(
@@ -211,12 +287,25 @@ class BookViewModel : ViewModel() {
             }
     }
 
+    // 3. Se acepta o rechaza -> Notificación para el SOLICITANTE
     fun updateRequestStatus(context: Context, requestId: String, newStatus: String) {
         db.collection("requests").document(requestId)
             .update("status", newStatus)
             .addOnSuccessListener {
                 val mensaje = if (newStatus == "ACEPTADA") "Solicitud Aceptada" else "Solicitud Rechazada"
                 Toast.makeText(context, mensaje, Toast.LENGTH_SHORT).show()
+
+                val targetRequest = _requests.value.find { it.id == requestId }
+                if (targetRequest != null) {
+                    val estadoTexto = if (newStatus == "ACEPTADA") "aceptó" else "rechazó"
+
+                    // Notificación enviada al SOLICITANTE
+                    addNotificationToUser(
+                        targetUserId = targetRequest.applicantId,
+                        title = "Respuesta de Solicitud",
+                        message = "${targetRequest.ownerName} $estadoTexto tu solicitud para el libro '${targetRequest.bookTitle}'."
+                    )
+                }
             }
             .addOnFailureListener { e ->
                 Toast.makeText(context, "Error al actualizar el estado", Toast.LENGTH_SHORT).show()
@@ -228,5 +317,6 @@ class BookViewModel : ViewModel() {
         super.onCleared()
         booksListener?.remove()
         requestsListener?.remove()
+        notificationsListener?.remove()
     }
 }

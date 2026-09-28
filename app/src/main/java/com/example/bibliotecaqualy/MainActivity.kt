@@ -78,6 +78,7 @@ fun MainAppContent(
     var currentTab by remember { mutableIntStateOf(0) }
     var bookToEdit by remember { mutableStateOf<Book?>(null) }
     var selectedBookForDetail by remember { mutableStateOf<Book?>(null) }
+    var showNotificationsScreen by remember { mutableStateOf(false) }
 
     // Permisos de notificaciones para Android 13+
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
@@ -91,7 +92,12 @@ fun MainAppContent(
         }
     }
 
-    if (selectedBookForDetail != null) {
+    if (showNotificationsScreen) {
+        NotificationsScreen(
+            viewModel = viewModel,
+            onBack = { showNotificationsScreen = false }
+        )
+    } else if (selectedBookForDetail != null) {
         BookDetailScreen(
             book = selectedBookForDetail!!,
             viewModel = viewModel,
@@ -151,6 +157,7 @@ fun MainAppContent(
                     0 -> HomeScreen(
                         viewModel = viewModel,
                         onBookClick = { book -> selectedBookForDetail = book },
+                        onNotificationClick = { showNotificationsScreen = true },
                         onSwipeLeft = { if (currentTab < 4) currentTab += 1 },
                         onSwipeRight = { if (currentTab > 0) currentTab -= 1 }
                     )

@@ -34,6 +34,7 @@ import com.example.bibliotecaqualy.viewmodel.BookViewModel
 fun HomeScreen(
     viewModel: BookViewModel,
     onBookClick: (Book) -> Unit = {},
+    onNotificationClick: () -> Unit = {},
     onSwipeRight: (() -> Unit)? = null,
     onSwipeLeft: (() -> Unit)? = null
 ) {
@@ -95,7 +96,7 @@ fun HomeScreen(
                     fontWeight = FontWeight.Bold,
                     color = QualyGreen
                 )
-                IconButton(onClick = { }) {
+                IconButton(onClick = onNotificationClick) {
                     Icon(
                         imageVector = Icons.Default.Notifications,
                         contentDescription = "Notificaciones",
